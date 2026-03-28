@@ -4,9 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/helpers_system"
-    )
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/helpers_system"
     redis_url: str = "redis://localhost:6379"
     jwt_secret: str = "change-me"
     jwt_expire_hours: int = 24

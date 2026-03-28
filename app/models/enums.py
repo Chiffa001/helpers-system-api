@@ -1,20 +1,20 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class WorkspaceStatus(str, Enum):
+class WorkspaceStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
 
 
-class WorkspacePlan(str, Enum):
+class WorkspacePlan(StrEnum):
     FREE = "free"
     BASIC = "basic"
     PRO = "pro"
     BUSINESS = "business"
 
 
-class WorkspaceRole(str, Enum):
+class WorkspaceRole(StrEnum):
     WORKSPACE_ADMIN = "workspace_admin"
     ASSISTANT = "assistant"
     CLIENT = "client"

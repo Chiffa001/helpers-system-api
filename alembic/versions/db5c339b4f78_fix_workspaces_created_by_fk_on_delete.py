@@ -2,9 +2,6 @@
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
 
 revision: str = "db5c339b4f78"

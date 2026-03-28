@@ -52,9 +52,7 @@ class AuthService:
                 detail="Invalid Telegram initData",
             ) from exc
 
-        user = await self.session.scalar(
-            select(User).where(User.telegram_id == tg_user.id)
-        )
+        user = await self.session.scalar(select(User).where(User.telegram_id == tg_user.id))
 
         if user is None:
             user = User(

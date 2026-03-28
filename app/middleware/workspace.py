@@ -1,5 +1,6 @@
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -22,7 +23,9 @@ class WorkspaceAccessContext:
     role: WorkspaceActorRole
 
 
-def require_workspace_access(*allowed_roles: WorkspaceRole):
+def require_workspace_access(
+    *allowed_roles: WorkspaceRole,
+) -> Callable[..., Coroutine[Any, Any, WorkspaceAccessContext]]:
     """Validate membership in a workspace and optionally enforce allowed roles."""
 
     async def dependency(

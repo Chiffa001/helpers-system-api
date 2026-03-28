@@ -65,7 +65,7 @@ def extract_telegram_user(init_data: dict[str, str]) -> dict[str, Any]:
         raise InvalidTelegramInitDataError("Missing Telegram user payload")
 
     try:
-        user_payload = json.loads(raw_user)
+        user_payload: dict[str, Any] = json.loads(raw_user)
     except json.JSONDecodeError as exc:
         raise InvalidTelegramInitDataError("Invalid Telegram user payload") from exc
 

@@ -1,6 +1,6 @@
 COMPOSE = docker compose
 
-.PHONY: up down logs migrate dev
+.PHONY: up down logs migrate dev lint format typecheck test ci install-hooks
 
 up:
 	$(COMPOSE) up -d
@@ -16,3 +16,24 @@ migrate:
 
 dev:
 	uv run fastapi dev
+
+lint:
+	uv run ruff check .
+
+format:
+	uv run ruff format .
+	uv run ruff check --fix .
+
+typecheck:
+	uv run mypy app/
+
+test:
+	uv run pytest -m "not integration"
+
+test-all:
+	uv run pytest -m "integration or not integration"
+
+ci: lint typecheck test
+
+install-hooks:
+	uv run pre-commit install

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/telegram",
     response_model=AuthResponse,
     summary="Authorize via Telegram Mini App",
-    description="Validates Telegram initData, creates or updates the user, and returns a JWT access token.",
+    description="Validates Telegram initData, creates or updates the user, and returns a JWT.",
 )
 async def authenticate_via_telegram(
     payload: TelegramAuthRequest,
@@ -46,7 +46,7 @@ async def get_me(
     "/me/workspaces",
     response_model=list[UserWorkspaceResponse],
     summary="List my workspaces",
-    description="Returns workspaces where the current user is an active member together with their role.",
+    description="Returns workspaces where the current user is an active member, with their role.",
 )
 async def get_my_workspaces(
     current_user: Annotated[User, Depends(get_current_user)],

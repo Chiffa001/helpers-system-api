@@ -25,7 +25,7 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
     "",
     response_model=list[WorkspaceOut],
     summary="List workspaces",
-    description="Returns all workspaces for super admins, or only member workspaces for regular users.",
+    description="Returns all workspaces for super admins, or member workspaces for regular users.",
 )
 async def list_workspaces(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -56,7 +56,7 @@ async def create_workspace(
     "/{id}",
     response_model=WorkspaceDetailResponse,
     summary="Get workspace details",
-    description="Returns detailed workspace data and active member counts for an accessible workspace.",
+    description="Returns detailed workspace data and active member counts.",
 )
 async def get_workspace(
     access: Annotated[WorkspaceAccessContext, Depends(require_workspace_access())],
@@ -70,7 +70,7 @@ async def get_workspace(
     "/{id}",
     response_model=WorkspaceOut,
     summary="Update workspace",
-    description="Updates workspace title or status. Available to workspace admins and super admins.",
+    description="Updates workspace title or status. For workspace admins and super admins.",
 )
 async def update_workspace(
     payload: WorkspaceUpdateRequest,
@@ -105,7 +105,7 @@ async def delete_workspace(
     "/{id}/members",
     response_model=list[WorkspaceMemberResponse],
     summary="List workspace members",
-    description="Returns workspace members with linked user data. Available to workspace admins and super admins.",
+    description="Returns workspace members with linked user data. For admins and super admins.",
 )
 async def list_workspace_members(
     id: UUID,
