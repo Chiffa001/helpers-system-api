@@ -6,17 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import AsyncSessionLocal, get_db_session
-from app.core.security import (
-    create_access_token,
-    extract_telegram_user,
-    validate_telegram_init_data,
-)
+from app.core.security import create_access_token, validate_telegram_init_data
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
 from app.modules.auth.schemas import (
     AuthResponse,
     CurrentUserResponse,
+    TelegramAuthRequest,
     TelegramWebAppUser,
     UserWorkspaceInfo,
     UserWorkspaceResponse,
@@ -38,19 +35,19 @@ class AuthService:
         self.session = session
         self.settings = settings
 
-    async def authenticate_telegram(self, init_data: str) -> AuthResponse:
-        """Validate Telegram initData, upsert the user, and issue a JWT."""
+    async def authenticate_telegram(
+        self, x_tg_hash: str, payload: TelegramAuthRequest
+    ) -> AuthResponse:
+        """Validate X-TG-HASH header, upsert the user from body, and issue a JWT."""
         try:
-            validated_data = validate_telegram_init_data(
-                init_data,
-                self.settings.telegram_bot_token,
-            )
-            tg_user = TelegramWebAppUser.model_validate(extract_telegram_user(validated_data))
+            validate_telegram_init_data(x_tg_hash, self.settings.telegram_bot_token)
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Telegram initData",
+                detail="Invalid Telegram auth data",
             ) from exc
+
+        tg_user = payload.user
 
         user = await self.session.scalar(select(User).where(User.telegram_id == tg_user.id))
 

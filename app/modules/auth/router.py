@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.middleware.auth import get_current_user
 from app.models.user import User
@@ -19,14 +19,20 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/telegram",
     response_model=AuthResponse,
     summary="Authorize via Telegram Mini App",
-    description="Validates Telegram initData, creates or updates the user, and returns a JWT.",
+    description="Validates X-TG-HASH header and upserts the user from the request body.",
 )
 async def authenticate_via_telegram(
     payload: TelegramAuthRequest,
     service: Annotated[AuthService, Depends(AuthService)],
+    x_tg_hash: Annotated[str | None, Header()] = None,
 ) -> AuthResponse:
     """Exchange Telegram initData for an API access token."""
-    return await service.authenticate_telegram(payload.init_data)
+    if x_tg_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="X-TG-HASH header is required",
+        )
+    return await service.authenticate_telegram(x_tg_hash, payload)
 
 
 @router.get(

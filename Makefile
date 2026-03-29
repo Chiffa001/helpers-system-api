@@ -15,7 +15,8 @@ migrate:
 	uv run alembic upgrade head
 
 dev:
-	uv run fastapi dev
+	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile ./certs/192.168.0.15+2-key.pem --ssl-certfile ./certs/192.168.0.15+2.pem --reload
+
 
 lint:
 	uv run ruff check .

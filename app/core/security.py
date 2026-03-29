@@ -4,7 +4,7 @@ import json
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qs, unquote
 
 import jwt
 
@@ -20,24 +20,20 @@ class InvalidAccessTokenError(ValueError):
 
 
 def parse_telegram_init_data(init_data: str) -> dict[str, str]:
-    return {key: value for key, value in parse_qsl(init_data, keep_blank_values=True)}
+    parsed = parse_qs(init_data)
+    return {key: unquote(values[0]) for key, values in parsed.items() if values}
 
 
-def validate_telegram_init_data(init_data: str, bot_token: str) -> dict[str, str]:
-    if not bot_token:
-        raise InvalidTelegramInitDataError("TELEGRAM_BOT_TOKEN is not configured")
+def _validate_telegram_webapp_data(init_data: dict[str, str], bot_token: str) -> None:
+    for field in ("auth_date", "hash"):
+        if field not in init_data:
+            raise InvalidTelegramInitDataError(f"Missing required field: {field}")
 
-    parsed = parse_telegram_init_data(init_data)
-    received_hash = parsed.get("hash")
-    auth_date = parsed.get("auth_date")
+    received_hash = init_data["hash"]
 
-    if not received_hash or not auth_date:
-        raise InvalidTelegramInitDataError("Missing auth_date or hash")
+    data_check = {k: v for k, v in init_data.items() if k != "hash"}
 
-    data_check = "\n".join(
-        f"{key}={value}"
-        for key, value in sorted((key, value) for key, value in parsed.items() if key != "hash")
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_check.items()))
 
     secret_key = hmac.new(
         key=b"WebAppData",
@@ -46,16 +42,23 @@ def validate_telegram_init_data(init_data: str, bot_token: str) -> dict[str, str
     ).digest()
     computed_hash = hmac.new(
         key=secret_key,
-        msg=data_check.encode(),
+        msg=data_check_string.encode(),
         digestmod=hashlib.sha256,
     ).hexdigest()
 
     if not hmac.compare_digest(computed_hash, received_hash):
-        raise InvalidTelegramInitDataError("Invalid hash")
+        raise InvalidTelegramInitDataError("Hash comparison failed")
 
-    if int(time.time()) - int(auth_date) > 24 * 60 * 60:
-        raise InvalidTelegramInitDataError("initData expired")
+    if int(time.time()) - int(init_data["auth_date"]) > 86400:
+        raise InvalidTelegramInitDataError("Auth expired")
 
+
+def validate_telegram_init_data(init_data: str, bot_token: str) -> dict[str, str]:
+    if not bot_token:
+        raise InvalidTelegramInitDataError("TELEGRAM_BOT_TOKEN is not configured")
+
+    parsed = parse_telegram_init_data(init_data)
+    _validate_telegram_webapp_data(parsed, bot_token)
     return parsed
 
 

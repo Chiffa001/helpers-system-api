@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from unittest.mock import patch
 
@@ -12,17 +11,26 @@ TG_USER: dict[str, Any] = {
     "username": "testuser",
 }
 
-VALIDATED_DATA: dict[str, str] = {
-    "user": json.dumps(TG_USER),
-    "auth_date": "1700000000",
+AUTH_BODY: dict[str, Any] = {
+    "user": TG_USER,
+    "auth_date": 1700000000,
     "hash": "fakehash",
 }
+
+TG_HASH_HEADER = {"x-tg-hash": "mocked"}
+
+
+@pytest.mark.asyncio
+async def test_auth_missing_header(client: AsyncClient) -> None:
+    response = await client.post("/auth/telegram", json=AUTH_BODY)
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_auth_invalid_init_data(client: AsyncClient) -> None:
-    response = await client.post("/auth/telegram", json={"init_data": "invalid"})
+    response = await client.post("/auth/telegram", json=AUTH_BODY, headers={"x-tg-hash": "invalid"})
     assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid Telegram auth data"}
 
 
 @pytest.mark.asyncio
@@ -39,17 +47,11 @@ async def test_auth_invalid_token(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_auth_telegram_success(client: AsyncClient) -> None:
-    with (
-        patch(
-            "app.modules.auth.service.validate_telegram_init_data",
-            return_value=VALIDATED_DATA,
-        ),
-        patch(
-            "app.modules.auth.service.extract_telegram_user",
-            return_value=TG_USER,
-        ),
+    with patch(
+        "app.modules.auth.service.validate_telegram_init_data",
+        return_value={},
     ):
-        response = await client.post("/auth/telegram", json={"init_data": "mocked"})
+        response = await client.post("/auth/telegram", json=AUTH_BODY, headers=TG_HASH_HEADER)
 
     assert response.status_code == 200
     data = response.json()
@@ -62,17 +64,11 @@ async def test_auth_telegram_success(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_auth_me(client: AsyncClient) -> None:
-    with (
-        patch(
-            "app.modules.auth.service.validate_telegram_init_data",
-            return_value=VALIDATED_DATA,
-        ),
-        patch(
-            "app.modules.auth.service.extract_telegram_user",
-            return_value=TG_USER,
-        ),
+    with patch(
+        "app.modules.auth.service.validate_telegram_init_data",
+        return_value={},
     ):
-        auth = await client.post("/auth/telegram", json={"init_data": "mocked"})
+        auth = await client.post("/auth/telegram", json=AUTH_BODY, headers=TG_HASH_HEADER)
 
     token = auth.json()["access_token"]
     response = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
@@ -82,17 +78,11 @@ async def test_auth_me(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_auth_me_workspaces_empty(client: AsyncClient) -> None:
-    with (
-        patch(
-            "app.modules.auth.service.validate_telegram_init_data",
-            return_value=VALIDATED_DATA,
-        ),
-        patch(
-            "app.modules.auth.service.extract_telegram_user",
-            return_value=TG_USER,
-        ),
+    with patch(
+        "app.modules.auth.service.validate_telegram_init_data",
+        return_value={},
     ):
-        auth = await client.post("/auth/telegram", json={"init_data": "mocked"})
+        auth = await client.post("/auth/telegram", json=AUTH_BODY, headers=TG_HASH_HEADER)
 
     token = auth.json()["access_token"]
     response = await client.get("/auth/me/workspaces", headers={"Authorization": f"Bearer {token}"})

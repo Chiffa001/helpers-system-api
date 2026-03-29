@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     super_admin_telegram_id: int | None = None
     sqlalchemy_echo: bool = False
+    cors_origins: list[str] = ["*"]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
