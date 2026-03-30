@@ -24,11 +24,12 @@
 Модель: shared database, shared schema.
 
 Каждая таблица содержит workspace_id. Изоляция данных обеспечивается на уровне middleware:
-1. JWT содержит user_id
-2. Middleware проверяет, что пользователь является членом запрашиваемого workspace
-3. Все запросы к DB фильтруются по workspace_id
+1. JWT содержит `sub` (user UUID) и `is_super_admin` (bool)
+2. `get_current_user` декодирует токен, загружает пользователя из DB, проверяет `is_active`
+3. `require_workspace_access` проверяет активную запись `WorkspaceMember` для запрашиваемого workspace
+4. Все запросы к DB фильтруются по workspace_id
 
-Super admin не ограничен workspace_id — получает доступ ко всем данным.
+Super admin (`is_super_admin=True`) обходит проверку членства — получает доступ ко всем workspace-ам с виртуальной ролью `"super_admin"`.
 
 ---
 
@@ -47,21 +48,23 @@ Super admin не ограничен workspace_id — получает досту
 
 ---
 
-## Поток
+## Поток авторизации
 
-1. Telegram -> Mini App (с параметром workspace_id)
-2. Mini App -> backend (initData + workspace_id)
-3. backend -> auth (проверка initData подписи)
-4. backend -> проверка членства в workspace
-5. API calls с workspace-scoped запросами
-6. payments -> webhook -> background worker -> подтверждение
+1. Telegram Mini App получает `initData` от Telegram WebApp SDK
+2. Mini App отправляет `POST /auth/telegram`:
+   - заголовок `X-TG-HASH: <initData строка>`
+   - тело: `{ user: { id, first_name, last_name, username }, auth_date, hash, query_id? }`
+3. Backend проверяет HMAC-SHA256 подпись initData (ключ: `HMAC(WebAppData, BOT_TOKEN)`), TTL не более 24 часов
+4. Пользователь upsert-ится по `telegram_id`; если `telegram_id == SUPER_ADMIN_TELEGRAM_ID` — `is_super_admin=True`
+5. Возвращается JWT (HS256, claims: `sub`, `is_super_admin`, `exp`) и профиль пользователя
+6. Дальнейшие запросы: `Authorization: Bearer <token>`, middleware проверяет токен и членство в workspace
+7. payments -> webhook -> background worker -> подтверждение
 
 ---
 
 ## Redis
 
 Используется для:
-- кэширование сессий (telegram initData)
 - очередь фоновых задач (ARQ)
 - rate limiting
 

@@ -8,10 +8,44 @@
 ---
 
 ## Auth
-POST /auth/telegram
-GET /auth/me
 
-GET /auth/me/workspaces          ← список workspace-ов пользователя с его ролью в каждом
+### POST /auth/telegram
+Аутентификация через Telegram Mini App. Принимает Telegram initData и возвращает JWT.
+
+**Headers:**
+- `X-TG-HASH: <initData>` — строка initData из Telegram WebApp SDK (обязательно)
+
+**Body:**
+```json
+{
+  "user": { "id": 123456789, "first_name": "Ivan", "last_name": "Ivanov", "username": "ivan" },
+  "auth_date": 1711800000,
+  "hash": "abc123...",
+  "query_id": "optional"
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "<JWT>",
+  "token_type": "bearer",
+  "user": { "id": "<uuid>", "full_name": "Ivan Ivanov", "username": "ivan", "is_super_admin": false }
+}
+```
+
+Валидация: HMAC-SHA256 подпись initData с ключом `HMAC(WebAppData, BOT_TOKEN)`, TTL 24 часа.
+Новый пользователь создаётся автоматически. Если `is_active=false` — 403.
+
+---
+
+### GET /auth/me
+Возвращает профиль текущего пользователя по Bearer-токену.
+
+---
+
+### GET /auth/me/workspaces
+Список активных workspace-ов пользователя с его ролью в каждом (`workspace_admin` / `assistant` / `client`).
 
 ---
 
