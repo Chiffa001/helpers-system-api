@@ -15,6 +15,7 @@ from app.modules.workspaces.schemas import (
     WorkspaceMemberUpdateRequest,
     WorkspaceOut,
     WorkspaceUpdateRequest,
+    WorkspaceUserResponse,
 )
 from app.modules.workspaces.service import WorkspacesService
 
@@ -99,6 +100,24 @@ async def delete_workspace(
     del current_user
     await service.delete_workspace(id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/{id}/users",
+    response_model=list[WorkspaceUserResponse],
+    summary="List workspace users",
+    description="Returns active members of a workspace with optional role and search filters.",
+)
+async def list_workspace_users(
+    id: UUID,
+    access: Annotated[WorkspaceAccessContext, Depends(require_workspace_access())],
+    service: Annotated[WorkspacesService, Depends(WorkspacesService)],
+    role: Annotated[WorkspaceRole | None, Query()] = None,
+    search: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+) -> list[WorkspaceUserResponse]:
+    """List active workspace users."""
+    del access
+    return await service.list_users(id, role, search)
 
 
 @router.get(

@@ -34,3 +34,9 @@ async def client() -> AsyncGenerator[AsyncClient]:
         base_url="http://test",
     ) as c:
         yield c
+
+
+@pytest.fixture
+async def db_session() -> AsyncGenerator[AsyncSession]:
+    async with _session_factory() as session:
+        yield session

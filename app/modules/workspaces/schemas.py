@@ -54,6 +54,16 @@ class WorkspaceMemberResponse(BaseModel):
     joined_at: datetime
 
 
+class WorkspaceUserResponse(BaseModel):
+    id: UUID
+    full_name: str
+    username: str | None
+    role: WorkspaceRole
+    joined_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class WorkspaceMemberCreateRequest(BaseModel):
     telegram_id: int
     role: WorkspaceRole

@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
@@ -21,6 +21,7 @@ from app.modules.workspaces.schemas import (
     WorkspaceMemberUser,
     WorkspaceOut,
     WorkspaceUpdateRequest,
+    WorkspaceUserResponse,
 )
 
 
@@ -183,6 +184,47 @@ class WorkspacesService:
                 )
             )
         return members
+
+    async def list_users(
+        self,
+        workspace_id: UUID,
+        role: WorkspaceRole | None = None,
+        search: str | None = None,
+    ) -> list[WorkspaceUserResponse]:
+        """Return active workspace users with optional role and text filters."""
+        query = (
+            select(User, WorkspaceMember.role, WorkspaceMember.joined_at)
+            .join(WorkspaceMember, WorkspaceMember.user_id == User.id)
+            .where(
+                WorkspaceMember.workspace_id == workspace_id,
+                WorkspaceMember.is_active.is_(True),
+            )
+            .order_by(WorkspaceMember.joined_at.desc())
+        )
+
+        if role is not None:
+            query = query.where(WorkspaceMember.role == role)
+
+        if search:
+            pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    User.full_name.ilike(pattern),
+                    User.username.ilike(pattern),
+                )
+            )
+
+        result = await self.session.execute(query)
+        return [
+            WorkspaceUserResponse(
+                id=user.id,
+                full_name=user.full_name,
+                username=user.username,
+                role=member_role,
+                joined_at=joined_at,
+            )
+            for user, member_role, joined_at in result.all()
+        ]
 
     async def add_member(
         self,
