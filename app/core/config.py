@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,7 +9,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     jwt_secret: str = "change-me"
     jwt_expire_hours: int = 24
-    telegram_bot_token: str = ""
+    telegram_bot_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TELEGRAM_BOT_TOKEN", "BOT_TOKEN"),
+    )
+    telegram_mini_app_url: str = Field(
+        default="https://t.me/YourBot/App",
+        validation_alias=AliasChoices("TELEGRAM_MINI_APP_URL", "MINI_APP_URL"),
+    )
     super_admin_telegram_id: int | None = None
     sqlalchemy_echo: bool = False
     cors_origins: list[str] = ["*"]

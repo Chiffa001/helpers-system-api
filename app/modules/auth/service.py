@@ -39,8 +39,20 @@ class AuthService:
         self, x_tg_hash: str, payload: TelegramAuthRequest
     ) -> AuthResponse:
         """Validate X-TG-HASH header, upsert the user from body, and issue a JWT."""
+        bot_token = self.settings.telegram_bot_token
+        if payload.workspace_slug is not None:
+            workspace = await self.session.scalar(
+                select(Workspace).where(Workspace.slug == payload.workspace_slug)
+            )
+            if workspace is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Workspace not found",
+                )
+            bot_token = workspace.bot_token or bot_token
+
         try:
-            validate_telegram_init_data(x_tg_hash, self.settings.telegram_bot_token)
+            validate_telegram_init_data(x_tg_hash, bot_token)
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

@@ -11,6 +11,9 @@ class WorkspaceOut(BaseModel):
     id: UUID
     title: str
     slug: str
+    has_bot: bool
+    bot_username: str | None
+    mini_app_url: str | None
     status: WorkspaceStatus
     plan: WorkspacePlan
     created_at: datetime
@@ -27,6 +30,9 @@ class WorkspaceCreateRequest(BaseModel):
 class WorkspaceUpdateRequest(BaseModel):
     title: str | None = None
     status: WorkspaceStatus | None = None
+    bot_token: str | None = None
+    bot_username: str | None = None
+    mini_app_url: str | None = None
 
 
 class WorkspaceMembersCount(BaseModel):

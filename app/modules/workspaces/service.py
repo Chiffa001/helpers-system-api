@@ -126,6 +126,9 @@ class WorkspacesService:
             id=workspace.id,
             title=workspace.title,
             slug=workspace.slug,
+            has_bot=workspace.has_bot,
+            bot_username=workspace.bot_username,
+            mini_app_url=workspace.mini_app_url,
             status=workspace.status,
             plan=workspace.plan,
             fee_rate=workspace.fee_rate,
@@ -143,6 +146,12 @@ class WorkspacesService:
             workspace.title = payload.title
         if payload.status is not None:
             workspace.status = payload.status
+        if "bot_token" in payload.model_fields_set:
+            workspace.bot_token = payload.bot_token
+        if "bot_username" in payload.model_fields_set:
+            workspace.bot_username = payload.bot_username
+        if "mini_app_url" in payload.model_fields_set:
+            workspace.mini_app_url = payload.mini_app_url
 
         await self.session.commit()
         await self.session.refresh(workspace)

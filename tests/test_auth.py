@@ -1,8 +1,12 @@
 from typing import Any
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.workspace import Workspace
 
 TG_USER: dict[str, Any] = {
     "id": 9000000001,
@@ -88,3 +92,42 @@ async def test_auth_me_workspaces_empty(client: AsyncClient) -> None:
     response = await client.get("/auth/me/workspaces", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_auth_telegram_uses_workspace_bot_token_when_workspace_slug_is_provided(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    suffix = uuid4().hex[:8]
+    workspace = Workspace(
+        title="Clinic Workspace",
+        slug=f"clinic-{suffix}",
+        bot_token="workspace-bot-token",
+    )
+    db_session.add(workspace)
+    await db_session.commit()
+
+    body = {**AUTH_BODY, "workspace_slug": workspace.slug}
+
+    with patch(
+        "app.modules.auth.service.validate_telegram_init_data",
+        return_value={},
+    ) as validate_mock:
+        response = await client.post("/auth/telegram", json=body, headers=TG_HASH_HEADER)
+
+    assert response.status_code == 200
+    validate_mock.assert_called_once_with("mocked", "workspace-bot-token")
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_auth_telegram_returns_404_for_unknown_workspace_slug(
+    client: AsyncClient,
+) -> None:
+    body = {**AUTH_BODY, "workspace_slug": "missing-workspace"}
+
+    response = await client.post("/auth/telegram", json=body, headers=TG_HASH_HEADER)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Workspace not found"}

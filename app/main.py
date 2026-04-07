@@ -8,6 +8,8 @@ from app.core.config import get_settings
 from app.core.database import engine, ping_database
 from app.modules.auth.router import router as auth_router
 from app.modules.auth.service import seed_super_admin
+from app.modules.invites.router import router as invites_router
+from app.modules.invites.router import workspace_router as workspace_invites_router
 from app.modules.workspaces.router import router as workspaces_router
 
 settings = get_settings()
@@ -19,6 +21,10 @@ tags_metadata = [
     {
         "name": "workspaces",
         "description": "Workspace management and member administration for authorized users.",
+    },
+    {
+        "name": "invites",
+        "description": "Workspace invite tokens for assistant onboarding via Telegram deep links.",
     },
 ]
 
@@ -65,4 +71,6 @@ async def database_health() -> dict[str, str]:
 
 
 app.include_router(auth_router)
+app.include_router(invites_router)
+app.include_router(workspace_invites_router)
 app.include_router(workspaces_router)

@@ -29,6 +29,7 @@ class TelegramWebAppUser(BaseModel):
 
 
 class TelegramAuthRequest(BaseModel):
+    workspace_slug: str | None = None
     user: TelegramWebAppUser
     auth_date: int
     hash: str

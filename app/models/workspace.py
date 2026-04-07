@@ -27,6 +27,9 @@ class Workspace(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     title: Mapped[str] = mapped_column(String, nullable=False)
     slug: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    bot_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    bot_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    mini_app_url: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[WorkspaceStatus] = mapped_column(
         status_enum,
         default=WorkspaceStatus.ACTIVE,
@@ -55,3 +58,7 @@ class Workspace(Base):
     )
 
     members = relationship("WorkspaceMember", back_populates="workspace")
+
+    @property
+    def has_bot(self) -> bool:
+        return self.bot_token is not None
