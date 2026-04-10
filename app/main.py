@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.database import engine, ping_database
 from app.modules.auth.router import router as auth_router
 from app.modules.auth.service import seed_super_admin
+from app.modules.billing.router import router as billing_router
 from app.modules.invites.router import router as invites_router
 from app.modules.invites.router import workspace_router as workspace_invites_router
 from app.modules.workspaces.router import router as workspaces_router
@@ -25,6 +26,10 @@ tags_metadata = [
     {
         "name": "invites",
         "description": "Workspace invite tokens for assistant onboarding via Telegram deep links.",
+    },
+    {
+        "name": "billing",
+        "description": "Workspace billing info, plan catalogue, and super-admin plan overrides.",
     },
 ]
 
@@ -74,3 +79,4 @@ app.include_router(auth_router)
 app.include_router(invites_router)
 app.include_router(workspace_invites_router)
 app.include_router(workspaces_router)
+app.include_router(billing_router)

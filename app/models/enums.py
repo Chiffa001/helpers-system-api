@@ -18,3 +18,26 @@ class WorkspaceRole(StrEnum):
     WORKSPACE_ADMIN = "workspace_admin"
     ASSISTANT = "assistant"
     CLIENT = "client"
+
+
+class BillingPeriod(StrEnum):
+    MONTHLY = "monthly"
+    ANNUAL = "annual"
+
+
+class SubscriptionStatus(StrEnum):
+    ACTIVE = "active"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    PAST_DUE = "past_due"
+
+
+class BillingProvider(StrEnum):
+    MANUAL = "manual"
+
+
+class BillingPaymentStatus(StrEnum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    REFUNDED = "refunded"

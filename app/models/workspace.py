@@ -58,6 +58,16 @@ class Workspace(Base):
     )
 
     members = relationship("WorkspaceMember", back_populates="workspace")
+    subscriptions = relationship(
+        "WorkspaceSubscription",
+        back_populates="workspace",
+        order_by="WorkspaceSubscription.created_at.desc()",
+    )
+    billing_payments = relationship(
+        "BillingPayment",
+        back_populates="workspace",
+        order_by="BillingPayment.created_at.desc()",
+    )
 
     @property
     def has_bot(self) -> bool:
