@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
+from app.core.exceptions import PlanLimitExceeded
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_invite import WorkspaceInvite
 from app.models.workspace_member import WorkspaceMember
+from app.modules.billing.schemas import PLAN_LIMITS
 from app.modules.invites.schemas import (
     WorkspaceInviteAcceptResponse,
     WorkspaceInviteCreateRequest,
@@ -31,7 +33,10 @@ class InvitesService:
         self.settings = settings
 
     def _build_invite_url(self, workspace: Workspace, token: UUID) -> str:
-        base_url = (workspace.mini_app_url or self.settings.telegram_mini_app_url).rstrip("/")
+        base_url = self.settings.telegram_mini_app_url
+        if workspace.has_bot and workspace.mini_app_url:
+            base_url = workspace.mini_app_url
+        base_url = base_url.rstrip("/")
         return f"{base_url}?startapp=invite_{token}"
 
     def _ensure_invite_is_usable(self, invite: WorkspaceInvite) -> None:
@@ -52,6 +57,8 @@ class InvitesService:
         created_by_user: User,
         payload: WorkspaceInviteCreateRequest,
     ) -> WorkspaceInviteResponse:
+        await self._ensure_member_limit_available(workspace)
+
         invite = WorkspaceInvite(
             workspace_id=workspace.id,
             role=payload.role,
@@ -182,3 +189,25 @@ class InvitesService:
             workspace_title=workspace_obj.title,
             role=invite.role,
         )
+
+    async def _ensure_member_limit_available(self, workspace: Workspace) -> None:
+        limit = PLAN_LIMITS[workspace.plan]["members"]
+        if limit is None:
+            return
+
+        current_count = await self._count_active_members(workspace.id)
+        if current_count >= limit:
+            raise PlanLimitExceeded(
+                current=current_count,
+                limit=limit,
+                plan=workspace.plan,
+            )
+
+    async def _count_active_members(self, workspace_id: UUID) -> int:
+        result = await self.session.scalars(
+            select(WorkspaceMember).where(
+                WorkspaceMember.workspace_id == workspace_id,
+                WorkspaceMember.is_active.is_(True),
+            )
+        )
+        return len(result.all())

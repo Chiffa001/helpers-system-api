@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.database import engine, ping_database
+from app.core.exceptions import PlanLimitExceeded, plan_limit_exceeded_handler
 from app.modules.auth.router import router as auth_router
 from app.modules.auth.service import seed_super_admin
 from app.modules.billing.router import router as billing_router
@@ -48,6 +49,7 @@ app = FastAPI(
     lifespan=lifespan,
     openapi_tags=tags_metadata,
 )
+app.add_exception_handler(PlanLimitExceeded, plan_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

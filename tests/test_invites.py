@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
-from app.models.enums import WorkspaceRole
+from app.models.enums import WorkspacePlan, WorkspaceRole
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_invite import WorkspaceInvite
@@ -19,6 +19,9 @@ from app.models.workspace_member import WorkspaceMember
 class SeededInviteData(TypedDict):
     workspace: Workspace
     admin: User
+    assistant: User
+    client: User
+    super_admin: User
     invitee: User
     outsider: User
 
@@ -47,6 +50,22 @@ async def _seed_invite_data(db_session: AsyncSession) -> SeededInviteData:
         full_name="Workspace Admin",
         username="workspace_admin",
     )
+    assistant = User(
+        telegram_id=7_811_000_000 + telegram_seed,
+        full_name="Workspace Assistant",
+        username="workspace_assistant",
+    )
+    client = User(
+        telegram_id=7_812_000_000 + telegram_seed,
+        full_name="Workspace Client",
+        username="workspace_client",
+    )
+    super_admin = User(
+        telegram_id=7_813_000_000 + telegram_seed,
+        full_name="Platform Super Admin",
+        username="platform_super_admin",
+        is_super_admin=True,
+    )
     invitee = User(
         telegram_id=7_820_000_000 + telegram_seed,
         full_name="Accepted Assistant",
@@ -58,23 +77,42 @@ async def _seed_invite_data(db_session: AsyncSession) -> SeededInviteData:
         username="outside_user",
     )
 
-    db_session.add_all([workspace, admin, invitee, outsider])
+    db_session.add_all([workspace, admin, assistant, client, super_admin, invitee, outsider])
     await db_session.flush()
 
-    db_session.add(
-        WorkspaceMember(
-            workspace_id=workspace.id,
-            user_id=admin.id,
-            role=WorkspaceRole.WORKSPACE_ADMIN,
-            is_active=True,
-            joined_at=datetime(2026, 1, 10, 10, 0, tzinfo=UTC),
-        )
+    db_session.add_all(
+        [
+            WorkspaceMember(
+                workspace_id=workspace.id,
+                user_id=admin.id,
+                role=WorkspaceRole.WORKSPACE_ADMIN,
+                is_active=True,
+                joined_at=datetime(2026, 1, 10, 10, 0, tzinfo=UTC),
+            ),
+            WorkspaceMember(
+                workspace_id=workspace.id,
+                user_id=assistant.id,
+                role=WorkspaceRole.ASSISTANT,
+                is_active=True,
+                joined_at=datetime(2026, 1, 10, 10, 5, tzinfo=UTC),
+            ),
+            WorkspaceMember(
+                workspace_id=workspace.id,
+                user_id=client.id,
+                role=WorkspaceRole.CLIENT,
+                is_active=True,
+                joined_at=datetime(2026, 1, 10, 10, 10, tzinfo=UTC),
+            ),
+        ]
     )
     await db_session.commit()
 
     return {
         "workspace": workspace,
         "admin": admin,
+        "assistant": assistant,
+        "client": client,
+        "super_admin": super_admin,
         "invitee": invitee,
         "outsider": outsider,
     }
@@ -96,7 +134,10 @@ async def test_create_and_list_workspace_invites(
     assert create_response.status_code == 201
     created = create_response.json()
     assert created["role"] == "assistant"
-    assert created["invite_url"] == f"https://t.me/ClinicBot/App?startapp=invite_{created['token']}"
+    assert (
+        created["invite_url"]
+        == f"{get_settings().telegram_mini_app_url}?startapp=invite_{created['token']}"
+    )
 
     list_response = await client.get(
         f"/workspaces/{data['workspace'].id}/invites",
@@ -105,6 +146,226 @@ async def test_create_and_list_workspace_invites(
 
     assert list_response.status_code == 200
     assert list_response.json() == [created]
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_create_invite_uses_base_bot_when_workspace_bot_is_not_connected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "assistant"},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert response.status_code == 201
+    assert (
+        response.json()["invite_url"]
+        == f"{get_settings().telegram_mini_app_url}?startapp=invite_{response.json()['token']}"
+    )
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_workspace_admin_can_create_invites_for_all_supported_roles(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    for role in ("workspace_admin", "assistant", "client"):
+        response = await client.post(
+            f"/workspaces/{data['workspace'].id}/invites",
+            json={"role": role},
+            headers=_auth_headers(data["admin"]),
+        )
+
+        assert response.status_code == 201
+        assert response.json()["role"] == role
+
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_create_invite_uses_workspace_bot_when_bot_is_connected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+    data["workspace"].bot_token = "encrypted-bot-token"
+    await db_session.commit()
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "assistant"},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert response.status_code == 201
+    assert (
+        response.json()["invite_url"]
+        == f"https://t.me/ClinicBot/App?startapp=invite_{response.json()['token']}"
+    )
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_super_admin_can_create_workspace_admin_invite_without_membership(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "workspace_admin"},
+        headers=_auth_headers(data["super_admin"]),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["role"] == "workspace_admin"
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_assistant_cannot_create_invite(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "assistant"},
+        headers=_auth_headers(data["assistant"]),
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Insufficient workspace permissions"}
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_client_cannot_create_invite(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "assistant"},
+        headers=_auth_headers(data["client"]),
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Insufficient workspace permissions"}
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_create_invite_returns_plan_limit_exceeded_when_member_slots_are_full(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+    data["workspace"].plan = WorkspacePlan.FREE
+
+    extra_users: list[User] = []
+    extra_members: list[WorkspaceMember] = []
+    for idx in range(2):
+        user = User(
+            telegram_id=7_840_000_000 + idx + (uuid4().int % 100_000),
+            full_name=f"Extra Member {idx}",
+            username=f"extra_member_{idx}",
+        )
+        extra_users.append(user)
+    db_session.add_all(extra_users)
+    await db_session.flush()
+
+    for idx, user in enumerate(extra_users):
+        extra_members.append(
+            WorkspaceMember(
+                workspace_id=data["workspace"].id,
+                user_id=user.id,
+                role=WorkspaceRole.CLIENT,
+                is_active=True,
+                joined_at=datetime(2026, 1, 10, 11, idx, tzinfo=UTC),
+            )
+        )
+    db_session.add_all(extra_members)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "client"},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": "plan_limit_exceeded",
+        "detail": {
+            "current": 5,
+            "limit": 5,
+            "plan": "free",
+        },
+    }
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_create_invite_ignores_inactive_members_for_plan_limit(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+    data["workspace"].plan = WorkspacePlan.FREE
+
+    extra_active = User(
+        telegram_id=7_850_000_001 + (uuid4().int % 100_000),
+        full_name="Extra Active Member",
+        username="extra_active_member",
+    )
+    extra_inactive = User(
+        telegram_id=7_850_000_002 + (uuid4().int % 100_000),
+        full_name="Extra Inactive Member",
+        username="extra_inactive_member",
+    )
+    db_session.add_all([extra_active, extra_inactive])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            WorkspaceMember(
+                workspace_id=data["workspace"].id,
+                user_id=extra_active.id,
+                role=WorkspaceRole.CLIENT,
+                is_active=True,
+                joined_at=datetime(2026, 1, 10, 11, 0, tzinfo=UTC),
+            ),
+            WorkspaceMember(
+                workspace_id=data["workspace"].id,
+                user_id=extra_inactive.id,
+                role=WorkspaceRole.CLIENT,
+                is_active=False,
+                joined_at=datetime(2026, 1, 10, 11, 5, tzinfo=UTC),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "assistant"},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["role"] == "assistant"
     await db_session.close()
 
 
@@ -257,4 +518,52 @@ async def test_revoke_invite_removes_it_from_active_list(
 
     assert list_response.status_code == 200
     assert list_response.json() == []
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_accept_invite_reactivates_inactive_membership_and_updates_role(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+    inactive_member = WorkspaceMember(
+        workspace_id=data["workspace"].id,
+        user_id=data["invitee"].id,
+        role=WorkspaceRole.CLIENT,
+        is_active=False,
+        joined_at=datetime(2026, 1, 10, 10, 15, tzinfo=UTC),
+    )
+    invite = WorkspaceInvite(
+        workspace_id=data["workspace"].id,
+        role=WorkspaceRole.WORKSPACE_ADMIN,
+        created_by_user_id=data["admin"].id,
+        expires_at=datetime.now(UTC) + timedelta(days=2),
+    )
+    db_session.add_all([inactive_member, invite])
+    await db_session.commit()
+    await db_session.refresh(invite)
+
+    response = await client.post(
+        f"/invites/{invite.token}/accept",
+        headers=_auth_headers(data["invitee"]),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "workspace_id": str(data["workspace"].id),
+        "workspace_title": data["workspace"].title,
+        "role": "workspace_admin",
+    }
+
+    member = await db_session.scalar(
+        select(WorkspaceMember).where(
+            WorkspaceMember.workspace_id == data["workspace"].id,
+            WorkspaceMember.user_id == data["invitee"].id,
+        )
+    )
+    assert member is not None
+    await db_session.refresh(member)
+    assert member.role == WorkspaceRole.WORKSPACE_ADMIN
+    assert member.is_active is True
     await db_session.close()

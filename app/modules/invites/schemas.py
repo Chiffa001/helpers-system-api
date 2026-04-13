@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from app.models.enums import WorkspaceRole
 
@@ -10,13 +10,6 @@ INVITE_TTL_DAYS = 7
 
 class WorkspaceInviteCreateRequest(BaseModel):
     role: WorkspaceRole
-
-    @field_validator("role")
-    @classmethod
-    def validate_role(cls, value: WorkspaceRole) -> WorkspaceRole:
-        if value is not WorkspaceRole.ASSISTANT:
-            raise ValueError("Only assistant invites are supported")
-        return value
 
 
 class WorkspaceInviteResponse(BaseModel):
