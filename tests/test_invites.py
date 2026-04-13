@@ -39,7 +39,8 @@ async def _seed_invite_data(db_session: AsyncSession) -> SeededInviteData:
     workspace = Workspace(
         title=f"Invite Workspace {suffix}",
         slug=f"invite-workspace-{suffix}",
-        mini_app_url="https://t.me/ClinicBot/App",
+        bot_username="ClinicBot",
+        bot_mini_app_name="App",
     )
     admin = User(
         telegram_id=7_810_000_000 + telegram_seed,

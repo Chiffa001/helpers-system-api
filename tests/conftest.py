@@ -19,6 +19,12 @@ def _make_null_pool_session() -> async_sessionmaker[AsyncSession]:
 _session_factory = _make_null_pool_session()
 
 
+@pytest.fixture(autouse=True)
+def _set_test_encryption_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BOT_TOKEN_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY")
+    get_settings.cache_clear()
+
+
 async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
     async with _session_factory() as session:
         yield session

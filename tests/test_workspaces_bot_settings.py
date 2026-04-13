@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, decrypt_bot_token
 from app.models.enums import WorkspaceRole
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -72,7 +72,7 @@ async def test_workspace_admin_can_update_bot_settings(
         json={
             "bot_token": "workspace-secret-token",
             "bot_username": "ClinicBot",
-            "mini_app_url": "https://t.me/ClinicBot/App",
+            "bot_mini_app_name": "App",
         },
         headers=_auth_headers(data["admin"]),
     )
@@ -80,8 +80,19 @@ async def test_workspace_admin_can_update_bot_settings(
     assert response.status_code == 200
     assert response.json()["has_bot"] is True
     assert response.json()["bot_username"] == "ClinicBot"
+    assert response.json()["bot_mini_app_name"] == "App"
     assert response.json()["mini_app_url"] == "https://t.me/ClinicBot/App"
     assert "bot_token" not in response.json()
+
+    await db_session.refresh(data["workspace"])
+    assert data["workspace"].bot_token != "workspace-secret-token"
+    assert (
+        decrypt_bot_token(
+            data["workspace"].bot_token or "",
+            get_settings().bot_token_encryption_key,
+        )
+        == "workspace-secret-token"
+    )
 
     get_response = await client.get(
         f"/workspaces/{data['workspace'].id}",
@@ -91,6 +102,7 @@ async def test_workspace_admin_can_update_bot_settings(
     assert get_response.status_code == 200
     assert get_response.json()["has_bot"] is True
     assert get_response.json()["bot_username"] == "ClinicBot"
+    assert get_response.json()["bot_mini_app_name"] == "App"
     assert get_response.json()["mini_app_url"] == "https://t.me/ClinicBot/App"
     assert "bot_token" not in get_response.json()
     await db_session.close()

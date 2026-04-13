@@ -29,7 +29,7 @@ class Workspace(Base):
     slug: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     bot_token: Mapped[str | None] = mapped_column(String, nullable=True)
     bot_username: Mapped[str | None] = mapped_column(String, nullable=True)
-    mini_app_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    bot_mini_app_name: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[WorkspaceStatus] = mapped_column(
         status_enum,
         default=WorkspaceStatus.ACTIVE,
@@ -72,3 +72,9 @@ class Workspace(Base):
     @property
     def has_bot(self) -> bool:
         return self.bot_token is not None
+
+    @property
+    def mini_app_url(self) -> str | None:
+        if not self.bot_username or not self.bot_mini_app_name:
+            return None
+        return f"https://t.me/{self.bot_username}/{self.bot_mini_app_name}"

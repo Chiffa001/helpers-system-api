@@ -37,7 +37,7 @@ PLAN_PRICES: dict[WorkspacePlan, PlanPriceMap] = {
 }
 
 PLAN_LIMITS: dict[WorkspacePlan, PlanLimitsMap] = {
-    WorkspacePlan.FREE: {"members": 5, "projects": 1, "crypto": False},
+    WorkspacePlan.FREE: {"members": 5, "projects": 1, "crypto": True},
     WorkspacePlan.BASIC: {"members": 20, "projects": 5, "crypto": True},
     WorkspacePlan.PRO: {"members": 50, "projects": None, "crypto": True},
     WorkspacePlan.BUSINESS: {"members": None, "projects": None, "crypto": True},

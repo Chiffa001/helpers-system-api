@@ -6,6 +6,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.security import encrypt_bot_token
 from app.models.workspace import Workspace
 
 TG_USER: dict[str, Any] = {
@@ -103,7 +105,10 @@ async def test_auth_telegram_uses_workspace_bot_token_when_workspace_slug_is_pro
     workspace = Workspace(
         title="Clinic Workspace",
         slug=f"clinic-{suffix}",
-        bot_token="workspace-bot-token",
+        bot_token=encrypt_bot_token(
+            "workspace-bot-token",
+            get_settings().bot_token_encryption_key,
+        ),
     )
     db_session.add(workspace)
     await db_session.commit()

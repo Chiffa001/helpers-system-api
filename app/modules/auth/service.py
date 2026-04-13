@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import AsyncSessionLocal, get_db_session
-from app.core.security import create_access_token, validate_telegram_init_data
+from app.core.security import (
+    create_access_token,
+    decrypt_bot_token,
+    validate_telegram_init_data,
+)
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
@@ -49,7 +53,14 @@ class AuthService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Workspace not found",
                 )
-            bot_token = workspace.bot_token or bot_token
+            if workspace.bot_token:
+                try:
+                    bot_token = decrypt_bot_token(
+                        workspace.bot_token,
+                        self.settings.bot_token_encryption_key,
+                    )
+                except ValueError:
+                    bot_token = workspace.bot_token
 
         try:
             validate_telegram_init_data(x_tg_hash, bot_token)

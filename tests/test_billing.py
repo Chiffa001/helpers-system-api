@@ -226,7 +226,7 @@ async def test_list_plans_includes_prices_and_limits(
     assert plans["pro"]["limits"]["members"] == 50
     assert plans["business"]["limits"]["members"] is None
 
-    assert plans["free"]["limits"]["crypto"] is False
+    assert plans["free"]["limits"]["crypto"] is True
     assert plans["pro"]["limits"]["crypto"] is True
     await db_session.close()
 

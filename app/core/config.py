@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     jwt_secret: str = "change-me"
     jwt_expire_hours: int = 24
+    bot_token_encryption_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("BOT_TOKEN_ENCRYPTION_KEY"),
+    )
     telegram_bot_token: str = Field(
         default="",
         validation_alias=AliasChoices("TELEGRAM_BOT_TOKEN", "BOT_TOKEN"),

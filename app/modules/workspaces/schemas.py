@@ -13,6 +13,7 @@ class WorkspaceOut(BaseModel):
     slug: str
     has_bot: bool
     bot_username: str | None
+    bot_mini_app_name: str | None
     mini_app_url: str | None
     status: WorkspaceStatus
     plan: WorkspacePlan
@@ -32,7 +33,7 @@ class WorkspaceUpdateRequest(BaseModel):
     status: WorkspaceStatus | None = None
     bot_token: str | None = None
     bot_username: str | None = None
-    mini_app_url: str | None = None
+    bot_mini_app_name: str | None = None
 
 
 class WorkspaceMembersCount(BaseModel):

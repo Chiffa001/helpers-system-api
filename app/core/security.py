@@ -1,12 +1,16 @@
+import base64
+import binascii
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, unquote
 
 import jwt
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import Settings
 
@@ -17,6 +21,51 @@ class InvalidTelegramInitDataError(ValueError):
 
 class InvalidAccessTokenError(ValueError):
     """Raised when JWT cannot be decoded."""
+
+
+def _decode_encryption_key(key: str) -> bytes:
+    if not key:
+        raise ValueError("BOT_TOKEN_ENCRYPTION_KEY is not configured")
+
+    raw_key = key.encode()
+    if len(raw_key) == 32:
+        return raw_key
+
+    padding = "=" * (-len(key) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(key + padding)
+    except binascii.Error as exc:
+        raise ValueError(
+            "BOT_TOKEN_ENCRYPTION_KEY must be 32 raw bytes or base64url-encoded"
+        ) from exc
+
+    if len(decoded) != 32:
+        raise ValueError("BOT_TOKEN_ENCRYPTION_KEY must resolve to 32 bytes")
+
+    return decoded
+
+
+def encrypt_bot_token(token: str, key: str) -> str:
+    nonce = secrets.token_bytes(12)
+    ciphertext = AESGCM(_decode_encryption_key(key)).encrypt(nonce, token.encode(), None)
+    payload = nonce + ciphertext
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def decrypt_bot_token(ciphertext: str, key: str) -> str:
+    padding = "=" * (-len(ciphertext) % 4)
+    try:
+        payload = base64.urlsafe_b64decode(ciphertext + padding)
+    except binascii.Error as exc:
+        raise ValueError("Invalid encrypted bot token payload") from exc
+
+    if len(payload) < 13:
+        raise ValueError("Invalid encrypted bot token payload")
+
+    nonce = payload[:12]
+    encrypted = payload[12:]
+    plaintext = AESGCM(_decode_encryption_key(key)).decrypt(nonce, encrypted, None)
+    return plaintext.decode()
 
 
 def parse_telegram_init_data(init_data: str) -> dict[str, str]:

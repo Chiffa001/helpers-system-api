@@ -6,7 +6,9 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
+from app.core.security import encrypt_bot_token
 from app.models.enums import WorkspaceRole, WorkspaceStatus
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -29,8 +31,10 @@ class WorkspacesService:
     def __init__(
         self,
         session: Annotated[AsyncSession, Depends(get_db_session)],
+        settings: Annotated[Settings, Depends(get_settings)],
     ) -> None:
         self.session = session
+        self.settings = settings
 
     async def list_workspaces(
         self,
@@ -128,6 +132,7 @@ class WorkspacesService:
             slug=workspace.slug,
             has_bot=workspace.has_bot,
             bot_username=workspace.bot_username,
+            bot_mini_app_name=workspace.bot_mini_app_name,
             mini_app_url=workspace.mini_app_url,
             status=workspace.status,
             plan=workspace.plan,
@@ -147,11 +152,15 @@ class WorkspacesService:
         if payload.status is not None:
             workspace.status = payload.status
         if "bot_token" in payload.model_fields_set:
-            workspace.bot_token = payload.bot_token
+            workspace.bot_token = (
+                encrypt_bot_token(payload.bot_token, self.settings.bot_token_encryption_key)
+                if payload.bot_token
+                else None
+            )
         if "bot_username" in payload.model_fields_set:
             workspace.bot_username = payload.bot_username
-        if "mini_app_url" in payload.model_fields_set:
-            workspace.mini_app_url = payload.mini_app_url
+        if "bot_mini_app_name" in payload.model_fields_set:
+            workspace.bot_mini_app_name = payload.bot_mini_app_name
 
         await self.session.commit()
         await self.session.refresh(workspace)
