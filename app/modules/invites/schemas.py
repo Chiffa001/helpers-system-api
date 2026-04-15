@@ -10,12 +10,14 @@ INVITE_TTL_DAYS = 7
 
 class WorkspaceInviteCreateRequest(BaseModel):
     role: WorkspaceRole
+    group_id: UUID | None = None
 
 
 class WorkspaceInviteResponse(BaseModel):
     id: UUID
     token: UUID
     role: WorkspaceRole
+    group_id: UUID | None
     expires_at: datetime
     invite_url: str
 
@@ -23,6 +25,7 @@ class WorkspaceInviteResponse(BaseModel):
 class WorkspaceInvitePublicResponse(BaseModel):
     workspace_title: str
     role: WorkspaceRole
+    group_id: UUID | None
     expires_at: datetime
 
 

@@ -32,6 +32,12 @@ class WorkspaceInvite(Base):
         nullable=False,
         index=True,
     )
+    group_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("groups.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     role: Mapped[WorkspaceRole] = mapped_column(
         role_enum,
         nullable=False,
@@ -61,5 +67,6 @@ class WorkspaceInvite(Base):
     )
 
     workspace = relationship("Workspace")
+    group = relationship("Group")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     used_by_user = relationship("User", foreign_keys=[used_by_user_id])

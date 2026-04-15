@@ -10,6 +10,8 @@ from app.core.exceptions import PlanLimitExceeded, plan_limit_exceeded_handler
 from app.modules.auth.router import router as auth_router
 from app.modules.auth.service import seed_super_admin
 from app.modules.billing.router import router as billing_router
+from app.modules.groups.router import favorites_router as group_favorites_router
+from app.modules.groups.router import router as groups_router
 from app.modules.invites.router import router as invites_router
 from app.modules.invites.router import workspace_router as workspace_invites_router
 from app.modules.workspaces.router import router as workspaces_router
@@ -27,6 +29,10 @@ tags_metadata = [
     {
         "name": "invites",
         "description": "Workspace invite tokens for assistant onboarding via Telegram deep links.",
+    },
+    {
+        "name": "groups",
+        "description": "Workspace groups, group members, and role-scoped access to client spaces.",
     },
     {
         "name": "billing",
@@ -81,4 +87,6 @@ app.include_router(auth_router)
 app.include_router(invites_router)
 app.include_router(workspace_invites_router)
 app.include_router(workspaces_router)
+app.include_router(groups_router)
+app.include_router(group_favorites_router)
 app.include_router(billing_router)

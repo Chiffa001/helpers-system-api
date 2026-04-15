@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.exceptions import PlanLimitExceeded
+from app.models.enums import GroupHistoryEventType, GroupMemberRole, WorkspaceRole
+from app.models.group import Group
+from app.models.group_history_entry import GroupHistoryEntry
+from app.models.group_member import GroupMember
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_invite import WorkspaceInvite
@@ -59,8 +63,11 @@ class InvitesService:
     ) -> WorkspaceInviteResponse:
         await self._ensure_member_limit_available(workspace)
 
+        await self._validate_invite_target(workspace, payload)
+
         invite = WorkspaceInvite(
             workspace_id=workspace.id,
+            group_id=payload.group_id,
             role=payload.role,
             created_by_user_id=created_by_user.id,
             expires_at=default_invite_expiration(),
@@ -72,6 +79,7 @@ class InvitesService:
             id=invite.id,
             token=invite.token,
             role=invite.role,
+            group_id=invite.group_id,
             expires_at=invite.expires_at,
             invite_url=self._build_invite_url(workspace, invite.token),
         )
@@ -92,6 +100,7 @@ class InvitesService:
                 id=invite.id,
                 token=invite.token,
                 role=invite.role,
+                group_id=invite.group_id,
                 expires_at=invite.expires_at,
                 invite_url=self._build_invite_url(workspace, invite.token),
             )
@@ -132,6 +141,7 @@ class InvitesService:
         return WorkspaceInvitePublicResponse(
             workspace_title=workspace_obj.title,
             role=invite.role,
+            group_id=invite.group_id,
             expires_at=invite.expires_at,
         )
 
@@ -174,6 +184,12 @@ class InvitesService:
             member.is_active = True
             member.joined_at = datetime.now(UTC)
 
+        if invite.group_id is not None and invite.role in {
+            WorkspaceRole.ASSISTANT,
+            WorkspaceRole.CLIENT,
+        }:
+            await self._upsert_group_member(invite, current_user)
+
         invite.used_at = datetime.now(UTC)
         invite.used_by_user_id = current_user.id
         await self.session.commit()
@@ -188,6 +204,90 @@ class InvitesService:
             workspace_id=invite.workspace_id,
             workspace_title=workspace_obj.title,
             role=invite.role,
+        )
+
+    async def _validate_invite_target(
+        self,
+        workspace: Workspace,
+        payload: WorkspaceInviteCreateRequest,
+    ) -> None:
+        if payload.role == WorkspaceRole.WORKSPACE_ADMIN and payload.group_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="workspace_admin invite cannot target a group",
+            )
+
+        if payload.role == WorkspaceRole.CLIENT and payload.group_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="client invite must target a group",
+            )
+
+        if payload.group_id is None:
+            return
+
+        group = await self.session.scalar(
+            select(Group).where(
+                Group.id == payload.group_id,
+                Group.workspace_id == workspace.id,
+            )
+        )
+        if group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Group not found",
+            )
+
+    async def _upsert_group_member(
+        self,
+        invite: WorkspaceInvite,
+        current_user: User,
+    ) -> None:
+        group_role = (
+            GroupMemberRole.ASSISTANT
+            if invite.role == WorkspaceRole.ASSISTANT
+            else GroupMemberRole.CLIENT
+        )
+        group_member = await self.session.scalar(
+            select(GroupMember).where(
+                GroupMember.group_id == invite.group_id,
+                GroupMember.user_id == current_user.id,
+            )
+        )
+        if group_member is None:
+            self.session.add(
+                GroupMember(
+                    group_id=invite.group_id,
+                    user_id=current_user.id,
+                    role=group_role,
+                )
+            )
+            self.session.add(
+                GroupHistoryEntry(
+                    group_id=invite.group_id,
+                    actor_user_id=current_user.id,
+                    event_type=GroupHistoryEventType.MEMBER_ADDED,
+                    payload={
+                        "user_id": str(current_user.id),
+                        "role": group_role.value,
+                    },
+                )
+            )
+            return
+
+        group_member.role = group_role
+        group_member.is_active = True
+        group_member.joined_at = datetime.now(UTC)
+        self.session.add(
+            GroupHistoryEntry(
+                group_id=invite.group_id,
+                actor_user_id=current_user.id,
+                event_type=GroupHistoryEventType.MEMBER_ADDED,
+                payload={
+                    "user_id": str(current_user.id),
+                    "role": group_role.value,
+                },
+            )
         )
 
     async def _ensure_member_limit_available(self, workspace: Workspace) -> None:

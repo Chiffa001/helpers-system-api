@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
-from app.models.enums import WorkspacePlan, WorkspaceRole
+from app.models.enums import GroupMemberRole, WorkspacePlan, WorkspaceRole
+from app.models.group import Group
+from app.models.group_member import GroupMember
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_invite import WorkspaceInvite
@@ -18,6 +20,7 @@ from app.models.workspace_member import WorkspaceMember
 
 class SeededInviteData(TypedDict):
     workspace: Workspace
+    group: Group
     admin: User
     assistant: User
     client: User
@@ -80,6 +83,14 @@ async def _seed_invite_data(db_session: AsyncSession) -> SeededInviteData:
     db_session.add_all([workspace, admin, assistant, client, super_admin, invitee, outsider])
     await db_session.flush()
 
+    group = Group(
+        workspace_id=workspace.id,
+        title=f"Invite Group {suffix}",
+        created_by_user_id=admin.id,
+    )
+    db_session.add(group)
+    await db_session.flush()
+
     db_session.add_all(
         [
             WorkspaceMember(
@@ -109,6 +120,7 @@ async def _seed_invite_data(db_session: AsyncSession) -> SeededInviteData:
 
     return {
         "workspace": workspace,
+        "group": group,
         "admin": admin,
         "assistant": assistant,
         "client": client,
@@ -134,6 +146,7 @@ async def test_create_and_list_workspace_invites(
     assert create_response.status_code == 201
     created = create_response.json()
     assert created["role"] == "assistant"
+    assert created["group_id"] is None
     assert (
         created["invite_url"]
         == f"{get_settings().telegram_mini_app_url}?startapp=invite_{created['token']}"
@@ -177,7 +190,7 @@ async def test_workspace_admin_can_create_invites_for_all_supported_roles(
 ) -> None:
     data = await _seed_invite_data(db_session)
 
-    for role in ("workspace_admin", "assistant", "client"):
+    for role in ("workspace_admin", "assistant"):
         response = await client.post(
             f"/workspaces/{data['workspace'].id}/invites",
             json={"role": role},
@@ -186,6 +199,7 @@ async def test_workspace_admin_can_create_invites_for_all_supported_roles(
 
         assert response.status_code == 201
         assert response.json()["role"] == role
+        assert response.json()["group_id"] is None
 
     await db_session.close()
 
@@ -206,6 +220,7 @@ async def test_create_invite_uses_workspace_bot_when_bot_is_connected(
     )
 
     assert response.status_code == 201
+    assert response.json()["group_id"] is None
     assert (
         response.json()["invite_url"]
         == f"https://t.me/ClinicBot/App?startapp=invite_{response.json()['token']}"
@@ -302,7 +317,7 @@ async def test_create_invite_returns_plan_limit_exceeded_when_member_slots_are_f
 
     response = await client.post(
         f"/workspaces/{data['workspace'].id}/invites",
-        json={"role": "client"},
+        json={"role": "client", "group_id": str(data["group"].id)},
         headers=_auth_headers(data["admin"]),
     )
 
@@ -390,6 +405,7 @@ async def test_get_invite_returns_public_info(
     assert response.status_code == 200
     assert response.json()["workspace_title"] == data["workspace"].title
     assert response.json()["role"] == "assistant"
+    assert response.json()["group_id"] is None
     await db_session.close()
 
 
@@ -566,4 +582,58 @@ async def test_accept_invite_reactivates_inactive_membership_and_updates_role(
     await db_session.refresh(member)
     assert member.role == WorkspaceRole.WORKSPACE_ADMIN
     assert member.is_active is True
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_client_invite_must_target_group(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "client"},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "client invite must target a group"}
+    await db_session.close()
+
+
+@pytest.mark.asyncio
+async def test_create_client_invite_with_group_and_accept_creates_group_member(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    data = await _seed_invite_data(db_session)
+
+    create_response = await client.post(
+        f"/workspaces/{data['workspace'].id}/invites",
+        json={"role": "client", "group_id": str(data["group"].id)},
+        headers=_auth_headers(data["admin"]),
+    )
+
+    assert create_response.status_code == 201
+    assert create_response.json()["group_id"] == str(data["group"].id)
+    token = create_response.json()["token"]
+
+    accept_response = await client.post(
+        f"/invites/{token}/accept",
+        headers=_auth_headers(data["invitee"]),
+    )
+
+    assert accept_response.status_code == 200
+
+    group_member = await db_session.scalar(
+        select(GroupMember).where(
+            GroupMember.group_id == data["group"].id,
+            GroupMember.user_id == data["invitee"].id,
+        )
+    )
+    assert group_member is not None
+    assert group_member.role == GroupMemberRole.CLIENT
+    assert group_member.is_active is True
     await db_session.close()
