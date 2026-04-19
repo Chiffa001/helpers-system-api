@@ -179,7 +179,7 @@ class GroupsInvoicesMixin(GroupsServiceBase):
             )
 
         invoice.status = InvoiceStatus.PENDING_PAYMENT
-        invoice.payment_tx_hash = payload.payment_tx_hash
+        invoice.tx_hash = payload.tx_hash
         await self.session.commit()
         await self.session.refresh(invoice)
         return InvoiceOut.model_validate(invoice)

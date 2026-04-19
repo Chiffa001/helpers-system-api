@@ -3,6 +3,7 @@ from app.models.billing_payment import BillingPayment
 from app.models.group import Group
 from app.models.group_document import GroupDocument
 from app.models.group_event import GroupEvent
+from app.models.group_event_participant import GroupEventParticipant
 from app.models.group_favorite import GroupFavorite
 from app.models.group_history_entry import GroupHistoryEntry
 from app.models.group_member import GroupMember
@@ -23,6 +24,7 @@ __all__ = [
     "Group",
     "GroupDocument",
     "GroupEvent",
+    "GroupEventParticipant",
     "GroupFavorite",
     "GroupHistoryEntry",
     "GroupMember",

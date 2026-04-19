@@ -46,7 +46,7 @@ class Invoice(Base):
         index=True,
     )
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    payment_tx_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    tx_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

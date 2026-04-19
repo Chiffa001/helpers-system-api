@@ -47,6 +47,7 @@ main_module.ping_database = _override_ping_database
 @pytest.fixture(scope="session", autouse=True)
 async def _ensure_test_schema() -> None:
     async with _test_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
         await connection.run_sync(Base.metadata.create_all)
 
 

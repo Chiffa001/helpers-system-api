@@ -231,16 +231,37 @@ class GroupsServiceBase:
             )
         )
 
-    def _validate_event_payment(self, is_paid: bool, amount: Decimal | None) -> None:
+    def _validate_event_payment(
+        self,
+        is_paid: bool,
+        amount: Decimal | None,
+        currency: str | None,
+        due_date: datetime | None,
+    ) -> None:
         if is_paid and amount is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="amount is required for paid events",
             )
+        if is_paid and currency is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="currency is required for paid events",
+            )
         if not is_paid and amount is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="amount must be null for free events",
+            )
+        if not is_paid and currency is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="currency must be null for free events",
+            )
+        if not is_paid and due_date is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="due_date must be null for free events",
             )
 
     def _invoice_history_event(

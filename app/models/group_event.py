@@ -29,8 +29,11 @@ class GroupEvent(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    location: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[GroupEventStatus] = mapped_column(
         status_enum,
         default=GroupEventStatus.UPCOMING,

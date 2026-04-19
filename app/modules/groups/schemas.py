@@ -1,9 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import (
     GroupEventStatus,
@@ -121,15 +121,24 @@ class GroupEventCreateRequest(BaseModel):
     title: str
     description: str | None = None
     date: datetime
+    location: str | None = None
     is_paid: bool = False
     amount: Decimal | None = None
+    currency: str | None = None
+    due_date: datetime | None = None
 
     @model_validator(mode="after")
     def validate_paid_amount(self) -> GroupEventCreateRequest:
         if self.is_paid and self.amount is None:
             raise ValueError("amount is required for paid events")
+        if self.is_paid and self.currency is None:
+            raise ValueError("currency is required for paid events")
         if not self.is_paid and self.amount is not None:
             raise ValueError("amount must be null for free events")
+        if not self.is_paid and self.currency is not None:
+            raise ValueError("currency must be null for free events")
+        if not self.is_paid and self.due_date is not None:
+            raise ValueError("due_date must be null for free events")
         return self
 
 
@@ -137,8 +146,11 @@ class GroupEventUpdateRequest(BaseModel):
     title: str | None = None
     description: str | None = None
     date: datetime | None = None
+    location: str | None = None
     is_paid: bool | None = None
     amount: Decimal | None = None
+    currency: str | None = None
+    due_date: datetime | None = None
     status: GroupEventStatus | None = None
 
 
@@ -148,8 +160,11 @@ class GroupEventOut(BaseModel):
     title: str
     description: str | None
     date: datetime
+    location: str | None
     is_paid: bool
     amount: Decimal | None
+    currency: str | None
+    due_date: datetime | None
     status: GroupEventStatus
     created_by_user_id: UUID | None
     created_at: datetime
@@ -197,7 +212,7 @@ class WorkspaceFeedEventOut(BaseModel):
     participants_summary: ParticipantSummaryOut | None = None
 
 
-FeedEventOut = GroupFeedEventOut | WorkspaceFeedEventOut
+FeedEventOut = Annotated[GroupFeedEventOut | WorkspaceFeedEventOut, Field(discriminator="type")]
 
 
 class EventsFeedResponse(BaseModel):
@@ -218,7 +233,7 @@ class InvoiceUpdateRequest(BaseModel):
 
 
 class InvoicePayRequest(BaseModel):
-    payment_tx_hash: str
+    tx_hash: str
 
 
 class InvoiceOut(BaseModel):
@@ -229,7 +244,7 @@ class InvoiceOut(BaseModel):
     amount: Decimal
     status: InvoiceStatus
     due_date: datetime | None
-    payment_tx_hash: str | None
+    tx_hash: str | None
     paid_at: datetime | None
     created_at: datetime
 

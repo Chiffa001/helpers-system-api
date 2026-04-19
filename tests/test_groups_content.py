@@ -133,6 +133,7 @@ async def test_invoice_flow_respects_roles_and_writes_history(
             "date": "2026-05-12T14:00:00Z",
             "is_paid": True,
             "amount": "5000.00",
+            "currency": "RUB",
         },
         headers=_auth_headers(data["assistant"]),
     )
@@ -162,7 +163,7 @@ async def test_invoice_flow_respects_roles_and_writes_history(
 
     pay_response = await client.post(
         f"/workspaces/{data['workspace'].id}/groups/{data['assistant_group'].id}/invoices/{invoice_id}/pay",
-        json={"payment_tx_hash": "0xabc123"},
+        json={"tx_hash": "0xabc123"},
         headers=_auth_headers(data["client"]),
     )
     assert pay_response.status_code == 200

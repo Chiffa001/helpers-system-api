@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.enums import (
     WorkspaceEventAudience,
@@ -17,7 +17,7 @@ class WorkspaceEventCreateRequest(BaseModel):
     date: datetime
     location: str | None = None
     audience: WorkspaceEventAudience
-    group_ids: list[UUID] = []
+    group_ids: list[UUID] = Field(default_factory=list)
 
 
 class WorkspaceEventUpdateRequest(BaseModel):

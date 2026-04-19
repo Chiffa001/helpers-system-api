@@ -42,6 +42,14 @@ class GroupEventStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class GroupEventParticipantStatus(StrEnum):
+    INVITED = "invited"
+    CONFIRMED_FREE = "confirmed_free"
+    PENDING_PAYMENT = "pending_payment"
+    PAID = "paid"
+    CANCELLED = "cancelled"
+
+
 class WorkspaceEventAudience(StrEnum):
     ALL = "all"
     ASSISTANTS = "assistants"

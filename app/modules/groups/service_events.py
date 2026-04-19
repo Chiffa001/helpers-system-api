@@ -99,8 +99,11 @@ class GroupsEventsMixin(GroupsServiceBase):
             title=payload.title,
             description=payload.description,
             date=payload.date,
+            location=payload.location,
             is_paid=payload.is_paid,
             amount=payload.amount,
+            currency=payload.currency,
+            due_date=payload.due_date,
             created_by_user_id=current_user.id,
         )
         self.session.add(event)
@@ -113,6 +116,11 @@ class GroupsEventsMixin(GroupsServiceBase):
                 "event_id": str(event.id),
                 "title": event.title,
                 "date": self._dt(event.date),
+                "location": event.location,
+                "is_paid": event.is_paid,
+                "amount": self._decimal(event.amount) if event.amount is not None else None,
+                "currency": event.currency,
+                "due_date": self._dt(event.due_date),
             },
         )
         await self.session.commit()
@@ -143,7 +151,13 @@ class GroupsEventsMixin(GroupsServiceBase):
         previous_status = event.status
         next_is_paid = event.is_paid if payload.is_paid is None else payload.is_paid
         next_amount = event.amount if "amount" not in payload.model_fields_set else payload.amount
-        self._validate_event_payment(next_is_paid, next_amount)
+        next_currency = (
+            event.currency if "currency" not in payload.model_fields_set else payload.currency
+        )
+        next_due_date = (
+            event.due_date if "due_date" not in payload.model_fields_set else payload.due_date
+        )
+        self._validate_event_payment(next_is_paid, next_amount, next_currency, next_due_date)
 
         if payload.title is not None:
             event.title = payload.title
@@ -151,10 +165,16 @@ class GroupsEventsMixin(GroupsServiceBase):
             event.description = payload.description
         if payload.date is not None:
             event.date = payload.date
+        if "location" in payload.model_fields_set:
+            event.location = payload.location
         if payload.is_paid is not None:
             event.is_paid = payload.is_paid
         if "amount" in payload.model_fields_set:
             event.amount = payload.amount
+        if "currency" in payload.model_fields_set:
+            event.currency = payload.currency
+        if "due_date" in payload.model_fields_set:
+            event.due_date = payload.due_date
         if payload.status is not None:
             event.status = payload.status
 
@@ -219,9 +239,11 @@ class GroupsEventsMixin(GroupsServiceBase):
                 id=event.id,
                 title=event.title,
                 date=event.date,
+                location=event.location,
                 status=event.status,
                 is_paid=event.is_paid,
                 amount=event.amount,
+                currency=event.currency,
             )
             for event in events
         ]
