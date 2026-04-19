@@ -13,6 +13,7 @@ from app.models.enums import WorkspaceRole, WorkspaceStatus
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember
+from app.modules.workspace_events.sync import sync_member_workspace_event_participants
 from app.modules.workspaces.schemas import (
     WorkspaceCreateRequest,
     WorkspaceDetailResponse,
@@ -283,6 +284,12 @@ class WorkspacesService:
             member.is_active = True
             member.joined_at = datetime.now(UTC)
 
+        await sync_member_workspace_event_participants(
+            self.session,
+            workspace_id=workspace_id,
+            user_id=user.id,
+            role=member.role,
+        )
         await self.session.commit()
         await self.session.refresh(member)
 
@@ -325,6 +332,14 @@ class WorkspacesService:
             member.role = payload.role
         if payload.is_active is not None:
             member.is_active = payload.is_active
+
+        if member.is_active:
+            await sync_member_workspace_event_participants(
+                self.session,
+                workspace_id=workspace_id,
+                user_id=user.id,
+                role=member.role,
+            )
 
         await self.session.commit()
         await self.session.refresh(member)

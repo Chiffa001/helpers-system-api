@@ -1,20 +1,31 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.enums import (
     GroupEventStatus,
     GroupHistoryEventType,
+    WorkspaceEventResponse,
+    WorkspaceRole,
 )
 from app.models.group_event import GroupEvent
 from app.models.user import User
+from app.models.workspace_event import WorkspaceEvent
+from app.models.workspace_event_group import WorkspaceEventGroup
+from app.models.workspace_event_participant import WorkspaceEventParticipant
 from app.modules.groups.schemas import (
+    EventsFeedResponse,
+    FeedEventOut,
     GroupEventCreateRequest,
     GroupEventOut,
     GroupEventUpdateRequest,
+    GroupFeedEventOut,
+    ParticipantSummaryOut,
+    WorkspaceFeedEventOut,
 )
-from app.modules.groups.service_base import GroupsServiceBase
+from app.modules.groups.service_base import ActorRole, GroupsServiceBase
 
 
 class GroupsEventsMixin(GroupsServiceBase):
@@ -32,6 +43,48 @@ class GroupsEventsMixin(GroupsServiceBase):
         stmt = stmt.order_by(GroupEvent.date.asc())
         result = await self.session.scalars(stmt)
         return [GroupEventOut.model_validate(item) for item in result.all()]
+
+    async def get_events_feed(
+        self,
+        workspace_id: UUID,
+        group_id: UUID,
+        current_user: User,
+        status_filter: GroupEventStatus | None = None,
+        type_filter: str | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> EventsFeedResponse:
+        access = await self._require_group_read_access(workspace_id, group_id, current_user)
+        items: list[FeedEventOut] = []
+
+        if type_filter in {None, "group"}:
+            items.extend(
+                await self._fetch_group_feed_events(
+                    group_id,
+                    status_filter=status_filter,
+                    from_date=from_date,
+                    to_date=to_date,
+                )
+            )
+
+        if type_filter in {None, "workspace"}:
+            items.extend(
+                await self._fetch_workspace_feed_events(
+                    group_id,
+                    current_user,
+                    access.actor_role,
+                    status_filter=status_filter,
+                    from_date=from_date,
+                    to_date=to_date,
+                )
+            )
+
+        reverse = status_filter in {
+            GroupEventStatus.COMPLETED,
+            GroupEventStatus.CANCELLED,
+        }
+        items.sort(key=lambda item: item.date, reverse=reverse)
+        return EventsFeedResponse(items=items, total=len(items))
 
     async def create_event(
         self,
@@ -144,3 +197,118 @@ class GroupsEventsMixin(GroupsServiceBase):
             )
         await self.session.delete(event)
         await self.session.commit()
+
+    async def _fetch_group_feed_events(
+        self,
+        group_id: UUID,
+        status_filter: GroupEventStatus | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> list[GroupFeedEventOut]:
+        stmt = select(GroupEvent).where(GroupEvent.group_id == group_id)
+        if status_filter is not None:
+            stmt = stmt.where(GroupEvent.status == status_filter)
+        if from_date is not None:
+            stmt = stmt.where(GroupEvent.date >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(GroupEvent.date <= to_date)
+
+        events = (await self.session.scalars(stmt)).all()
+        return [
+            GroupFeedEventOut(
+                id=event.id,
+                title=event.title,
+                date=event.date,
+                status=event.status,
+                is_paid=event.is_paid,
+                amount=event.amount,
+            )
+            for event in events
+        ]
+
+    async def _fetch_workspace_feed_events(
+        self,
+        group_id: UUID,
+        current_user: User,
+        actor_role: ActorRole,
+        status_filter: GroupEventStatus | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> list[WorkspaceFeedEventOut]:
+        stmt = (
+            select(WorkspaceEvent)
+            .join(
+                WorkspaceEventGroup,
+                WorkspaceEventGroup.workspace_event_id == WorkspaceEvent.id,
+            )
+            .where(WorkspaceEventGroup.group_id == group_id)
+        )
+        if actor_role not in {"super_admin", WorkspaceRole.WORKSPACE_ADMIN}:
+            stmt = stmt.join(
+                WorkspaceEventParticipant,
+                (WorkspaceEventParticipant.workspace_event_id == WorkspaceEvent.id)
+                & (WorkspaceEventParticipant.user_id == current_user.id),
+            )
+        if status_filter is not None:
+            stmt = stmt.where(WorkspaceEvent.status == status_filter)
+        if from_date is not None:
+            stmt = stmt.where(WorkspaceEvent.date >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(WorkspaceEvent.date <= to_date)
+
+        events = (await self.session.scalars(stmt)).all()
+        items: list[WorkspaceFeedEventOut] = []
+        for event in events:
+            my_response = None
+            participants_summary = None
+            if actor_role in {"super_admin", WorkspaceRole.WORKSPACE_ADMIN}:
+                participants_summary = await self._workspace_event_participants_summary(event.id)
+            else:
+                participant = await self.session.scalar(
+                    select(WorkspaceEventParticipant).where(
+                        WorkspaceEventParticipant.workspace_event_id == event.id,
+                        WorkspaceEventParticipant.user_id == current_user.id,
+                    )
+                )
+                my_response = participant.response.value if participant is not None else None
+
+            items.append(
+                WorkspaceFeedEventOut(
+                    id=event.id,
+                    title=event.title,
+                    date=event.date,
+                    location=event.location,
+                    status=event.status,
+                    audience=event.audience.value,
+                    my_response=my_response,
+                    participants_summary=participants_summary,
+                )
+            )
+        return items
+
+    async def _workspace_event_participants_summary(
+        self,
+        event_id: UUID,
+    ) -> ParticipantSummaryOut:
+        counts = {
+            response.value: count
+            for response, count in (
+                await self.session.execute(
+                    select(
+                        WorkspaceEventParticipant.response,
+                        func.count(WorkspaceEventParticipant.id),
+                    )
+                    .where(WorkspaceEventParticipant.workspace_event_id == event_id)
+                    .group_by(WorkspaceEventParticipant.response)
+                )
+            ).all()
+        }
+        accepted = counts.get(WorkspaceEventResponse.ACCEPTED.value, 0)
+        declined = counts.get(WorkspaceEventResponse.DECLINED.value, 0)
+        pending = counts.get(WorkspaceEventResponse.PENDING.value, 0)
+        return ParticipantSummaryOut(
+            total=accepted + declined + pending,
+            accepted=accepted,
+            declined=declined,
+            pending=pending,
+        )

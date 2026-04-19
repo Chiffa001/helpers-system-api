@@ -2,21 +2,24 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+import app.main as main_module
 from app.core.config import get_settings
 from app.core.database import get_db_session
-from app.main import app
+from app.models import Base
 
+settings = get_settings()
+_test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+_session_factory = async_sessionmaker(
+    _test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
-def _make_null_pool_session() -> async_sessionmaker[AsyncSession]:
-    settings = get_settings()
-    engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-
-_session_factory = _make_null_pool_session()
+app = main_module.app
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +34,20 @@ async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 app.dependency_overrides[get_db_session] = _override_get_db_session
+
+
+async def _override_ping_database() -> None:
+    async with _test_engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
+
+
+main_module.ping_database = _override_ping_database
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def _ensure_test_schema() -> None:
+    async with _test_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
 
 
 @pytest.fixture(scope="session")

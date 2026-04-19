@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -11,6 +12,7 @@ from app.models.enums import (
     GroupStageStatus,
     GroupStatus,
     InvoiceStatus,
+    WorkspaceEventStatus,
 )
 
 
@@ -153,6 +155,54 @@ class GroupEventOut(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InvoiceShortOut(BaseModel):
+    id: UUID
+    amount: Decimal
+    status: InvoiceStatus
+    due_date: datetime | None
+
+
+class GroupFeedEventOut(BaseModel):
+    type: Literal["group"] = "group"
+    id: UUID
+    title: str
+    date: datetime
+    location: str | None = None
+    status: GroupEventStatus
+    is_paid: bool
+    amount: Decimal | None
+    currency: str | None = None
+    my_participant_status: str | None = None
+    my_invoice: InvoiceShortOut | None = None
+
+
+class ParticipantSummaryOut(BaseModel):
+    total: int
+    accepted: int
+    declined: int
+    pending: int
+
+
+class WorkspaceFeedEventOut(BaseModel):
+    type: Literal["workspace"] = "workspace"
+    id: UUID
+    title: str
+    date: datetime
+    location: str | None = None
+    status: WorkspaceEventStatus
+    audience: str
+    my_response: str | None = None
+    participants_summary: ParticipantSummaryOut | None = None
+
+
+FeedEventOut = GroupFeedEventOut | WorkspaceFeedEventOut
+
+
+class EventsFeedResponse(BaseModel):
+    items: list[FeedEventOut]
+    total: int
 
 
 class InvoiceCreateRequest(BaseModel):

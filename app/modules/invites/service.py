@@ -25,6 +25,7 @@ from app.modules.invites.schemas import (
     WorkspaceInviteResponse,
     default_invite_expiration,
 )
+from app.modules.workspace_events.sync import sync_member_workspace_event_participants
 
 
 class InvitesService:
@@ -189,6 +190,13 @@ class InvitesService:
             WorkspaceRole.CLIENT,
         }:
             await self._upsert_group_member(invite, current_user)
+
+        await sync_member_workspace_event_participants(
+            self.session,
+            workspace_id=invite.workspace_id,
+            user_id=current_user.id,
+            role=invite.role,
+        )
 
         invite.used_at = datetime.now(UTC)
         invite.used_by_user_id = current_user.id

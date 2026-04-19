@@ -14,6 +14,10 @@ from app.modules.groups.router import favorites_router as group_favorites_router
 from app.modules.groups.router import router as groups_router
 from app.modules.invites.router import router as invites_router
 from app.modules.invites.router import workspace_router as workspace_invites_router
+from app.modules.workspace_events.router import router as workspace_events_router
+from app.modules.workspace_events.router import (
+    workspace_router as workspace_events_workspace_router,
+)
 from app.modules.workspaces.router import router as workspaces_router
 
 settings = get_settings()
@@ -33,6 +37,10 @@ tags_metadata = [
     {
         "name": "groups",
         "description": "Workspace groups, group members, and role-scoped access to client spaces.",
+    },
+    {
+        "name": "workspace-events",
+        "description": "Workspace-wide events, participant responses, and group bindings.",
     },
     {
         "name": "billing",
@@ -86,6 +94,8 @@ async def database_health() -> dict[str, str]:
 app.include_router(auth_router)
 app.include_router(invites_router)
 app.include_router(workspace_invites_router)
+app.include_router(workspace_events_workspace_router)
+app.include_router(workspace_events_router)
 app.include_router(workspaces_router)
 app.include_router(groups_router)
 app.include_router(group_favorites_router)

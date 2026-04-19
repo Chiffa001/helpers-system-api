@@ -1,0 +1,1 @@
+"""Workspace event domain module."""

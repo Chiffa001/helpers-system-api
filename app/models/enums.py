@@ -42,6 +42,24 @@ class GroupEventStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class WorkspaceEventAudience(StrEnum):
+    ALL = "all"
+    ASSISTANTS = "assistants"
+    ADMINS = "admins"
+
+
+class WorkspaceEventStatus(StrEnum):
+    UPCOMING = "upcoming"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class WorkspaceEventResponse(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+
 class InvoiceStatus(StrEnum):
     ISSUED = "issued"
     PENDING_PAYMENT = "pending_payment"

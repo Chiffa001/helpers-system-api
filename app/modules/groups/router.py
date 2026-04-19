@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from app.models.enums import (
 )
 from app.models.user import User
 from app.modules.groups.schemas import (
+    EventsFeedResponse,
     GroupCreateRequest,
     GroupDocumentCreateRequest,
     GroupDocumentOut,
@@ -291,6 +293,34 @@ async def list_group_events(
 ) -> list[GroupEventOut]:
     del access
     return await service.list_events(id, group_id, current_user, status_filter)
+
+
+@router.get(
+    "/{id}/groups/{group_id}/events/feed",
+    response_model=EventsFeedResponse,
+    summary="List aggregated group events feed",
+)
+async def list_group_events_feed(
+    id: UUID,
+    group_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    access: Annotated[WorkspaceAccessContext, Depends(require_workspace_access())],
+    service: Annotated[GroupsService, Depends(GroupsService)],
+    status_filter: Annotated[GroupEventStatus | None, Query(alias="status")] = None,
+    type_filter: Annotated[str | None, Query(alias="type")] = None,
+    from_date: Annotated[datetime | None, Query()] = None,
+    to_date: Annotated[datetime | None, Query()] = None,
+) -> EventsFeedResponse:
+    del access
+    return await service.get_events_feed(
+        id,
+        group_id,
+        current_user,
+        status_filter=status_filter,
+        type_filter=type_filter,
+        from_date=from_date,
+        to_date=to_date,
+    )
 
 
 @router.post(
